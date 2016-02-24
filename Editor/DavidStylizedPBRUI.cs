@@ -1,23 +1,12 @@
 using System;
 using UnityEngine;
+using System.Linq;
+using System.Collections.Generic;
 
 namespace UnityEditor
 {
     internal class DavidStylizedPBRUI : ShaderGUI
     {
-    	private enum WorkflowMode
-    	{
-    		Specular,
-    		Metallic,
-    		Dielectric
-    	}
-
-        public enum ShadingMode
-        {
-            PBR,
-            Stylized
-        }
-
     	public enum BlendMode
     	{
     		Opaque,
@@ -68,71 +57,51 @@ namespace UnityEditor
             // Menus
     		public static readonly string[] cullingNames = Enum.GetNames (typeof (UnityEngine.Rendering.CullMode));
     		public static readonly string[] blendNames = Enum.GetNames (typeof (BlendMode));
-            public static readonly string[] shadingNames = Enum.GetNames (typeof (ShadingMode));
     	}
 
-        MaterialProperty shadingMode = null;
-    	MaterialProperty blendMode = null;
-        MaterialProperty cullMode = null;
-        MaterialProperty rampMap = null;
-        MaterialProperty rampScale = null;
-    	MaterialProperty albedoMap = null;
-    	MaterialProperty albedoColor = null;
-    	MaterialProperty alphaCutoff = null;
-    	MaterialProperty specularMap = null;
-    	MaterialProperty specularColor = null;
-    	MaterialProperty metallicMap = null;
-    	MaterialProperty metallic = null;
-    	MaterialProperty smoothness = null;
-        MaterialProperty rimPower = null;
-    	MaterialProperty bumpScale = null;
-    	MaterialProperty bumpMap = null;
-    	MaterialProperty occlusionStrength = null;
-    	MaterialProperty occlusionMap = null;
-    	MaterialProperty emissionColorForRendering = null;
-    	MaterialProperty emissionMap = null;
+    	MaterialProperty _BlendMode = null;
+        MaterialProperty _CullMode = null;
+        MaterialProperty _RampTex = null;
+    	MaterialProperty _MainTex = null;
+    	MaterialProperty _Color = null;
+    	MaterialProperty _CutOff = null;
+    	MaterialProperty _MaterialMaskTex = null;
+    	MaterialProperty _Metallic = null;
+    	MaterialProperty _Smoothness = null;
+        MaterialProperty _SmoothnessScale = null;
+    	MaterialProperty _NormalTex = null;
+        MaterialProperty _NormalScale = null;
+    	MaterialProperty _EmissionMap = null;
 
     	MaterialEditor m_MaterialEditor;
-    	WorkflowMode m_WorkflowMode = WorkflowMode.Specular;
-    	ColorPickerHDRConfig m_ColorPickerHDRConfig = new ColorPickerHDRConfig(0f, 99f, 1/99f, 3f);
-
+        string[] keywords;
     	bool m_FirstTimeApply = true;
 
     	public void FindProperties (MaterialProperty[] props)
     	{
-            shadingMode = FindProperty("_ShadingMode", props);
-            cullMode = FindProperty ("_Cull", props, false);
-    		blendMode = FindProperty ("_Mode", props);
-            rampMap = FindProperty ("_Ramp", props);
-            rampScale = FindProperty ("_RampScale", props);
-    		albedoMap = FindProperty ("_MainTex", props);
-    		albedoColor = FindProperty ("_Color", props);
-    		alphaCutoff = FindProperty ("_Cutoff", props);
-    		specularMap = FindProperty ("_SpecGlossMap", props, false);
-    		specularColor = FindProperty ("_SpecColor", props, false);
-    		metallicMap = FindProperty ("_MetallicGlossMap", props, false);
-    		metallic = FindProperty ("_Metallic", props, false);
-    		if (specularMap != null && specularColor != null)
-    			m_WorkflowMode = WorkflowMode.Specular;
-    		else if (metallicMap != null && metallic != null)
-    			m_WorkflowMode = WorkflowMode.Metallic;
-    		else
-    			m_WorkflowMode = WorkflowMode.Dielectric;
-    		smoothness = FindProperty ("_Glossiness", props);
-            rimPower = FindProperty("_RimPower", props);
-    		bumpScale = FindProperty ("_BumpScale", props);
-    		bumpMap = FindProperty ("_BumpMap", props);
-    		occlusionStrength = FindProperty ("_OcclusionStrength", props);
-    		occlusionMap = FindProperty ("_OcclusionMap", props);
-    		emissionColorForRendering = FindProperty ("_EmissionColor", props);
-    		emissionMap = FindProperty ("_EmissionMap", props);
+            _BlendMode = FindProperty ("_Mode", props);
+            _CullMode = FindProperty ("_Cull", props, false);
+            _RampTex = FindProperty ("_RampTex", props);
+    		_MainTex = FindProperty ("_MainTex", props);
+    		_Color = FindProperty ("_Color", props);
+    		_CutOff = FindProperty ("_Cutoff", props);
+    		_MaterialMaskTex = FindProperty ("_MaterialMaskTex", props, false);
+    		_Metallic = FindProperty ("_Metallic", props, false);
+    		_Smoothness = FindProperty ("_Smoothness", props);
+            _SmoothnessScale = FindProperty("_SmoothnessScale", props);
+    		_NormalScale = FindProperty ("_NormalScale", props);
+    		_NormalTex = FindProperty ("_NormalTex", props);
+    		_EmissionMap = FindProperty ("_EmissionMap", props);
     	}
 
     	public override void OnGUI (MaterialEditor materialEditor, MaterialProperty[] props)
     	{
-    		FindProperties (props); // MaterialProperties can be animated so we do not cache them but fetch them every event to ensure animated values are updated correctly
+    		// MaterialProperties can be animated so we do not cache them but fetch them every eventto ensure animated values are updated correctly
+            FindProperties (props);
+
     		m_MaterialEditor = materialEditor;
     		Material material = materialEditor.target as Material;
+            keywords = material.shaderKeywords;
 
     		ShaderPropertiesGUI (material);
 
@@ -140,135 +109,59 @@ namespace UnityEditor
     		// material to a standard shader.
     		if (m_FirstTimeApply)
     		{
-    			SetMaterialKeywords (material, m_WorkflowMode);
+                Initialize();
     			m_FirstTimeApply = false;
     		}
     	}
+
+        private void Initialize() {
+
+        }
 
     	public void ShaderPropertiesGUI (Material material)
     	{
     		// Use default labelWidth
     		EditorGUIUtility.labelWidth = 0f;
+            EditorGUI.BeginChangeCheck();
 
     		// Detect any changes to the material
-    		EditorGUI.BeginChangeCheck();
-    		{
-                CullModePopup();
+            CullModePopup();
+            EditorGUILayout.Space();
 
-                // Blend popup
-                //GUILayout.Label (Styles.blendModeText, EditorStyles.helpBox);
-    			BlendModePopup();
-                GUILayout.Label(Styles.blendModeInstruction, EditorStyles.helpBox);
-                EditorGUILayout.Space();
+			BlendModePopup();
+            EditorGUILayout.Space();
 
-                //GUILayout.Label (Styles.shadingModeText, EditorStyles.helpBox);
-    			ShadingModePopup();
-                GUILayout.Label(Styles.shadingmodeInstruction, EditorStyles.helpBox);
-                EditorGUILayout.Space();
+			// Ramp
+            DoRampArea(material);
 
-    			// Ramp
-                DoRampArea(material);
+            // Primary textures
+            GUILayout.Label (Styles.primaryMapsText, EditorStyles.boldLabel);
+            DoAlbedoArea(material);
+            DoSpecularMetallicArea(material);
 
-                // Primary textures
-                GUILayout.Label (Styles.primaryMapsText, EditorStyles.boldLabel);
-                DoAlbedoArea(material);
-                DoSpecularMetallicArea();
+            m_MaterialEditor.TexturePropertySingleLine(Styles.normalMapText, _NormalTex,
+            _NormalTex.textureValue != null ? _NormalScale : null);
 
-                // TODO: fix this crap..
-                m_MaterialEditor.RangeProperty(rimPower, "               RimPower");
+            DoEmissionArea(material);
+            EditorGUILayout.Space();
 
-                m_MaterialEditor.TexturePropertySingleLine(Styles.normalMapText, bumpMap,
-                bumpMap.textureValue != null ? bumpScale : null);
-                m_MaterialEditor.TexturePropertySingleLine(Styles.occlusionText, occlusionMap,
+            GUILayout.Label (Styles.uvTilingText, EditorStyles.boldLabel);
 
-                occlusionMap.textureValue != null ? occlusionStrength : null);
-                GUILayout.Label(Styles.occlusionInstruction, EditorStyles.helpBox);
-
-                DoEmissionArea(material);
-                EditorGUILayout.Space();
-
-    			EditorGUI.BeginChangeCheck();
-                GUILayout.Label (Styles.uvTilingText, EditorStyles.boldLabel);
-    			m_MaterialEditor.TextureScaleOffsetProperty(albedoMap);
-
-    			if (EditorGUI.EndChangeCheck())
-    				emissionMap.textureScaleAndOffset = albedoMap.textureScaleAndOffset; // Apply the main texture scale and offset to the emission texture as well, for Enlighten's sake
-    		}
-    		if (EditorGUI.EndChangeCheck())
-    		{
-    			foreach (var obj in blendMode.targets)
-    				MaterialChanged((Material)obj, m_WorkflowMode);
-    		}
+			m_MaterialEditor.TextureScaleOffsetProperty(_NormalTex);
+            EditorGUI.EndChangeCheck();
     	}
 
-    	internal void DetermineWorkflow(MaterialProperty[] props)
+    	void BlendModePopup ()
     	{
-    		if (FindProperty("_SpecGlossMap", props, false) != null && FindProperty("_SpecColor", props, false) != null)
-    			m_WorkflowMode = WorkflowMode.Specular;
-    		else if (FindProperty("_MetallicGlossMap", props, false) != null && FindProperty("_Metallic", props, false) != null)
-    			m_WorkflowMode = WorkflowMode.Metallic;
-    		else
-    			m_WorkflowMode = WorkflowMode.Dielectric;
-    	}
-
-    	public override void AssignNewShaderToMaterial (Material material, Shader oldShader, Shader newShader)
-    	{
-            // _Emission property is lost after assigning Standard shader to the material
-            // thus transfer it before assigning the new shader
-            if (material.HasProperty("_Emission"))
-            {
-                material.SetColor("_EmissionColor", material.GetColor("_Emission"));
-            }
-
-    		base.AssignNewShaderToMaterial(material, oldShader, newShader);
-
-    		if (oldShader == null || !oldShader.name.Contains("Legacy Shaders/"))
-    			return;
-
-    		BlendMode blendMode = BlendMode.Opaque;
-    		if (oldShader.name.Contains("/Transparent/Cutout/"))
-    		{
-    			blendMode = BlendMode.Cutout;
-    		}
-    		else if (oldShader.name.Contains("/Transparent/"))
-    		{
-    			// NOTE: legacy shaders did not provide physically based transparency
-    			// therefore Fade mode
-    			blendMode = BlendMode.Fade;
-    		}
-    		material.SetFloat("_Mode", (float)blendMode);
-
-    		DetermineWorkflow( MaterialEditor.GetMaterialProperties (new Material[] { material }) );
-    		MaterialChanged(material, m_WorkflowMode);
-    	}
-
-        void ShadingModePopup()
-        {
-            EditorGUI.showMixedValue = shadingMode.hasMixedValue;
-    		var mode = (ShadingMode)shadingMode.floatValue;
-
-    		EditorGUI.BeginChangeCheck();
-    		mode = (ShadingMode)EditorGUILayout.Popup(Styles.shadingModeText, (int)mode, Styles.shadingNames);
-    		if (EditorGUI.EndChangeCheck())
-    		{
-                m_MaterialEditor.RegisterPropertyChangeUndo("Shading Mode");
-    			shadingMode.floatValue = (float)mode;
-    		}
-
-    		EditorGUI.showMixedValue = false;
-        }
-
-    	void BlendModePopup()
-    	{
-    		EditorGUI.showMixedValue = blendMode.hasMixedValue;
-    		var mode = (BlendMode)blendMode.floatValue;
+    		EditorGUI.showMixedValue = _BlendMode.hasMixedValue;
+    		var mode = (BlendMode)_BlendMode.floatValue;
 
     		EditorGUI.BeginChangeCheck();
     		mode = (BlendMode)EditorGUILayout.Popup(Styles.renderingModeText, (int)mode, Styles.blendNames);
     		if (EditorGUI.EndChangeCheck())
     		{
     			m_MaterialEditor.RegisterPropertyChangeUndo("Rendering Mode");
-    			blendMode.floatValue = (float)mode;
+    			_BlendMode.floatValue = (float)mode;
     		}
 
     		EditorGUI.showMixedValue = false;
@@ -276,15 +169,15 @@ namespace UnityEditor
 
         void CullModePopup()
     	{
-    		EditorGUI.showMixedValue = cullMode.hasMixedValue;
-    		var mode = (UnityEngine.Rendering.CullMode)Mathf.RoundToInt(cullMode.floatValue);
+    		EditorGUI.showMixedValue = _CullMode.hasMixedValue;
+    		var mode = (UnityEngine.Rendering.CullMode)Mathf.RoundToInt(_CullMode.floatValue);
 
     		EditorGUI.BeginChangeCheck();
     		mode = (UnityEngine.Rendering.CullMode)EditorGUILayout.Popup(Styles.cullingMode, (int)mode, Styles.cullingNames);
     		if (EditorGUI.EndChangeCheck())
     		{
     			m_MaterialEditor.RegisterPropertyChangeUndo("Culling Mode");
-    			cullMode.floatValue = (float)mode;
+    			_CullMode.floatValue = (float)mode;
     		}
 
     		EditorGUI.showMixedValue = false;
@@ -292,87 +185,43 @@ namespace UnityEditor
 
         void DoRampArea(Material material)
         {
-            if((ShadingMode)material.GetFloat("_ShadingMode") == ShadingMode.Stylized)
-            {
-                GUILayout.Label (Styles.rampMapText, EditorStyles.boldLabel);
-                m_MaterialEditor.TexturePropertySingleLine(Styles.rampText, rampMap, rampMap.textureValue != null ? rampScale : null);
-                GUILayout.Label(Styles.rampMapInstruction, EditorStyles.helpBox);
-                EditorGUILayout.Space();
-            }
+            m_MaterialEditor.TexturePropertySingleLine(Styles.rampText, _RampTex);
+            EditorGUILayout.Space();
+
+            if (_RampTex.textureValue == null)
+                material.DisableKeyword("BRDF_LOOKUP");
+            else
+                material.EnableKeyword("BRDF_LOOKUP");
         }
 
     	void DoAlbedoArea(Material material)
     	{
-    		m_MaterialEditor.TexturePropertySingleLine(Styles.albedoText, albedoMap, albedoColor);
+    		m_MaterialEditor.TexturePropertySingleLine(Styles.albedoText, _MainTex, _Color);
     		if (((BlendMode)material.GetFloat("_Mode") == BlendMode.Cutout))
     		{
-    			m_MaterialEditor.ShaderProperty(alphaCutoff, Styles.alphaCutoffText.text, MaterialEditor.kMiniTextureFieldLabelIndentLevel+1);
+    			m_MaterialEditor.ShaderProperty(_CutOff, Styles.alphaCutoffText.text, MaterialEditor.kMiniTextureFieldLabelIndentLevel+1);
     		}
     	}
 
     	void DoEmissionArea(Material material)
     	{
-    		float brightness = emissionColorForRendering.colorValue.maxColorComponent;
-    		bool showHelpBox = !HasValidEmissiveKeyword(material);
-    		bool showEmissionColorAndGIControls = brightness > 0.0f;
-
-    		bool hadEmissionTexture = emissionMap.textureValue != null;
-
-    		// Texture and HDR color controls
-    		m_MaterialEditor.TexturePropertyWithHDRColor(Styles.emissionText, emissionMap, emissionColorForRendering, m_ColorPickerHDRConfig, false);
-
-    		// If texture was assigned and color was black set color to white
-    		if (emissionMap.textureValue != null && !hadEmissionTexture && brightness <= 0f)
-    			emissionColorForRendering.colorValue = Color.white;
-
-    		// Dynamic Lightmapping mode
-    		if (showEmissionColorAndGIControls)
-    		{
-    			bool shouldEmissionBeEnabled = ShouldEmissionBeEnabled(emissionColorForRendering.colorValue);
-    			EditorGUI.BeginDisabledGroup(!shouldEmissionBeEnabled);
-
-    			m_MaterialEditor.LightmapEmissionProperty (MaterialEditor.kMiniTextureFieldLabelIndentLevel + 1);
-
-    			EditorGUI.EndDisabledGroup();
-    		}
-
-    		if (showHelpBox)
-    		{
-    			EditorGUILayout.HelpBox(Styles.emissiveWarning.text, MessageType.Warning);
-    		}
+    		m_MaterialEditor.TexturePropertySingleLine(Styles.emissionText, _EmissionMap);
     	}
 
-    	void DoSpecularMetallicArea()
+    	void DoSpecularMetallicArea(Material material)
     	{
-    		if (m_WorkflowMode == WorkflowMode.Specular)
-    		{
-    			if (specularMap.textureValue == null)
-    				m_MaterialEditor.TexturePropertyTwoLines(Styles.specularMapText, specularMap, specularColor, Styles.smoothnessText, smoothness);
-    			else
-    				m_MaterialEditor.TexturePropertySingleLine(Styles.specularMapText, specularMap);
-
-    		}
-    		else if (m_WorkflowMode == WorkflowMode.Metallic)
-    		{
-    			if (metallicMap.textureValue == null)
-    				m_MaterialEditor.TexturePropertyTwoLines(Styles.metallicMapText, metallicMap, metallic, Styles.smoothnessText, smoothness);
-    			else
-    				m_MaterialEditor.TexturePropertySingleLine(Styles.metallicMapText, metallicMap);
-    		}
-    	}
-
-        public static void SetupMaterialWithShadingMode(Material material, ShadingMode shadingMode)
-    	{
-    		switch (shadingMode)
-    		{
-                case ShadingMode.PBR:
-                    material.DisableKeyword("RAMPMAP");
-                    break;
-                case ShadingMode.Stylized:
-                    material.EnableKeyword("RAMPMAP");
-                    break;
+			if (_MaterialMaskTex.textureValue == null)
+            {
+                material.DisableKeyword("_MASKMAP");
+                m_MaterialEditor.TexturePropertyTwoLines(Styles.metallicMapText, _MaterialMaskTex, _Metallic, Styles.smoothnessText, _Smoothness);
             }
-        }
+			else
+            {
+                material.EnableKeyword("_MASKMAP");
+				m_MaterialEditor.TexturePropertySingleLine(Styles.metallicMapText, _MaterialMaskTex);
+            }
+            m_MaterialEditor.RangeProperty(_SmoothnessScale, "Smoothness Scale");
+    	}
 
     	public static void SetupMaterialWithBlendMode(Material material, BlendMode blendMode)
     	{
@@ -421,15 +270,11 @@ namespace UnityEditor
     		}
     	}
 
-    	static bool ShouldEmissionBeEnabled (Color color)
-    	{
-    		return color.maxColorComponent > (0.1f / 255.0f);
-    	}
-
-    	static void SetMaterialKeywords(Material material, WorkflowMode workflowMode)
+    	static void SetMaterialKeywords(Material material)
     	{
     		// Note: keywords must be based on Material value not on MaterialProperty due to multi-edit & material animation
     		// (MaterialProperty value might come from renderer material property block)
+            /*
     		SetKeyword (material, "RAMPMAP", material.GetTexture ("_Ramp"));
     		SetKeyword (material, "_NORMALMAP", material.GetTexture ("_BumpMap") || material.GetTexture ("_DetailNormalMap"));
     		if (workflowMode == WorkflowMode.Specular)
@@ -452,26 +297,12 @@ namespace UnityEditor
 
     			material.globalIlluminationFlags = flags;
     		}
+            */
     	}
 
-    	bool HasValidEmissiveKeyword (Material material)
+    	static void MaterialChanged(Material material)
     	{
-    		// Material animation might be out of sync with the material keyword.
-    		// So if the emission support is disabled on the material, but the property blocks have a value that requires it, then we need to show a warning.
-    		// (note: (Renderer MaterialPropertyBlock applies its values to emissionColorForRendering))
-    		bool hasEmissionKeyword = material.IsKeywordEnabled ("_EMISSION");
-    		if (!hasEmissionKeyword && ShouldEmissionBeEnabled (emissionColorForRendering.colorValue))
-    			return false;
-    		else
-    			return true;
-    	}
-
-    	static void MaterialChanged(Material material, WorkflowMode workflowMode)
-    	{
-            SetupMaterialWithShadingMode(material, (ShadingMode)material.GetFloat("_ShadingMode"));
     		SetupMaterialWithBlendMode(material, (BlendMode)material.GetFloat("_Mode"));
-
-    		SetMaterialKeywords(material, workflowMode);
     	}
 
     	static void SetKeyword(Material m, string keyword, bool state)
