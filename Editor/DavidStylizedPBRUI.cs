@@ -1,7 +1,5 @@
 using System;
 using UnityEngine;
-using System.Linq;
-using System.Collections.Generic;
 
 namespace UnityEditor
 {
@@ -138,10 +136,7 @@ namespace UnityEditor
             GUILayout.Label (Styles.primaryMapsText, EditorStyles.boldLabel);
             DoAlbedoArea(material);
             DoSpecularMetallicArea(material);
-
-            m_MaterialEditor.TexturePropertySingleLine(Styles.normalMapText, _NormalTex,
-            _NormalTex.textureValue != null ? _NormalScale : null);
-
+            DoNormalArea(material);
             DoEmissionArea(material);
             EditorGUILayout.Space();
 
@@ -186,12 +181,14 @@ namespace UnityEditor
         void DoRampArea(Material material)
         {
             m_MaterialEditor.TexturePropertySingleLine(Styles.rampText, _RampTex);
-            EditorGUILayout.Space();
-
             if (_RampTex.textureValue == null)
+            {
                 material.DisableKeyword("BRDF_LOOKUP");
+            }
             else
+            {
                 material.EnableKeyword("BRDF_LOOKUP");
+            }
         }
 
     	void DoAlbedoArea(Material material)
@@ -205,7 +202,15 @@ namespace UnityEditor
 
     	void DoEmissionArea(Material material)
     	{
-    		m_MaterialEditor.TexturePropertySingleLine(Styles.emissionText, _EmissionMap);
+            if (_EmissionMap.textureValue == null)
+            {
+                material.DisableKeyword("_EMISSIONMAP");
+            }
+            else
+            {
+                material.EnableKeyword("_EMISSIONMAP");
+                m_MaterialEditor.TexturePropertySingleLine(Styles.emissionText, _EmissionMap);
+            }
     	}
 
     	void DoSpecularMetallicArea(Material material)
@@ -213,7 +218,9 @@ namespace UnityEditor
 			if (_MaterialMaskTex.textureValue == null)
             {
                 material.DisableKeyword("_MASKMAP");
-                m_MaterialEditor.TexturePropertyTwoLines(Styles.metallicMapText, _MaterialMaskTex, _Metallic, Styles.smoothnessText, _Smoothness);
+                m_MaterialEditor.TexturePropertySingleLine(Styles.emissionText, _MaterialMaskTex);
+                m_MaterialEditor.RangeProperty(_Metallic, "Metalic");
+                m_MaterialEditor.RangeProperty(_Smoothness, "Smoothness");
             }
 			else
             {
@@ -221,6 +228,21 @@ namespace UnityEditor
 				m_MaterialEditor.TexturePropertySingleLine(Styles.metallicMapText, _MaterialMaskTex);
             }
             m_MaterialEditor.RangeProperty(_SmoothnessScale, "Smoothness Scale");
+    	}
+
+    	void DoNormalArea(Material material)
+    	{
+			if (_NormalTex.textureValue == null)
+            {
+                material.DisableKeyword("_NORMALMAP");
+                m_MaterialEditor.TexturePropertySingleLine(Styles.emissionText, _NormalTex);
+            }
+			else
+            {
+                material.EnableKeyword("_NORMALMAP");
+                m_MaterialEditor.TexturePropertySingleLine(Styles.emissionText, _NormalTex);
+                m_MaterialEditor.RangeProperty(_NormalScale, "Normal Scale");
+            }
     	}
 
     	public static void SetupMaterialWithBlendMode(Material material, BlendMode blendMode)
@@ -270,48 +292,9 @@ namespace UnityEditor
     		}
     	}
 
-    	static void SetMaterialKeywords(Material material)
-    	{
-    		// Note: keywords must be based on Material value not on MaterialProperty due to multi-edit & material animation
-    		// (MaterialProperty value might come from renderer material property block)
-            /*
-    		SetKeyword (material, "RAMPMAP", material.GetTexture ("_Ramp"));
-    		SetKeyword (material, "_NORMALMAP", material.GetTexture ("_BumpMap") || material.GetTexture ("_DetailNormalMap"));
-    		if (workflowMode == WorkflowMode.Specular)
-    			SetKeyword (material, "_SPECGLOSSMAP", material.GetTexture ("_SpecGlossMap"));
-    		else if (workflowMode == WorkflowMode.Metallic)
-    			SetKeyword (material, "_METALLICGLOSSMAP", material.GetTexture ("_MetallicGlossMap"));
-    		SetKeyword (material, "_PARALLAXMAP", material.GetTexture ("_ParallaxMap"));
-    		SetKeyword (material, "_DETAIL_MULX2", material.GetTexture ("_DetailAlbedoMap") || material.GetTexture ("_DetailNormalMap"));
-
-    		bool shouldEmissionBeEnabled = ShouldEmissionBeEnabled (material.GetColor("_EmissionColor"));
-    		SetKeyword (material, "_EMISSION", shouldEmissionBeEnabled);
-
-    		// Setup lightmap emissive flags
-    		MaterialGlobalIlluminationFlags flags = material.globalIlluminationFlags;
-    		if ((flags & (MaterialGlobalIlluminationFlags.BakedEmissive | MaterialGlobalIlluminationFlags.RealtimeEmissive)) != 0)
-    		{
-    			flags &= ~MaterialGlobalIlluminationFlags.EmissiveIsBlack;
-    			if (!shouldEmissionBeEnabled)
-    				flags |= MaterialGlobalIlluminationFlags.EmissiveIsBlack;
-
-    			material.globalIlluminationFlags = flags;
-    		}
-            */
-    	}
-
     	static void MaterialChanged(Material material)
     	{
     		SetupMaterialWithBlendMode(material, (BlendMode)material.GetFloat("_Mode"));
     	}
-
-    	static void SetKeyword(Material m, string keyword, bool state)
-    	{
-    		if (state)
-    			m.EnableKeyword (keyword);
-    		else
-    			m.DisableKeyword (keyword);
-    	}
     }
-
-} // namespace UnityEditor
+}

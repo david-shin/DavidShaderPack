@@ -22,7 +22,7 @@ struct SurfaceOutputStylizedPBS
 //-------------------------------------------------------------------------------------
 
 //-------------------------------------------------------------------------------------
-inline half4 PBS_Stylized (half3 diffColor, half3 specColor, half oneMinusReflectivity, half oneMinusRoughness, half3 normal, half3 viewDir, UnityLight light, UnityIndirect gi)
+half4 PBS_Stylized (half3 diffColor, half3 specColor, half oneMinusReflectivity, half oneMinusRoughness, half3 normal, half3 viewDir, UnityLight light, UnityIndirect gi, half skinMask)
 {
     half3 reflDir = reflect (viewDir, normal);
 
@@ -39,17 +39,17 @@ inline half4 PBS_Stylized (half3 diffColor, half3 specColor, half oneMinusReflec
     grazingTerm += _SmoothnessScale;
 
     half hl = nl * 0.5 + 0.5;
-    half3 ramp = tex2D(_RampTex, half2(hl, nv)).rgb;
+    half3 ramp = tex2D(_RampTex, half2(hl, skinMask)).rgb;
 
-    // BRDF3_Direct and BRDF3_Indirect are for reflections,
     half3 color = BRDF3_Direct(diffColor, specColor, rlPow4, oneMinusRoughness);
-    color *= light.color * hl;
+    color *= light.color;
+    color *= (light.ndotl * ramp) / 2;
     color += BRDF3_Indirect(diffColor, specColor, gi, grazingTerm, fresnelTerm);
 
     return half4(color, 1);
 }
 
-inline half3 PBS_Stylized_Indirect (half3 baseColor, half3 specColor, half oneMinusReflectivity, half oneMinusRoughness, half3 normal, half3 viewDir, half occlusion, UnityGI gi)
+half3 PBS_Stylized_Indirect (half3 baseColor, half3 specColor, half oneMinusReflectivity, half oneMinusRoughness, half3 normal, half3 viewDir, half occlusion, UnityGI gi)
 {
     half3 c = 0;
     #if defined(DIRLIGHTMAP_SEPARATE)
@@ -68,7 +68,7 @@ inline half3 PBS_Stylized_Indirect (half3 baseColor, half3 specColor, half oneMi
 //-------------------------------------------------------------------------------------
 
 //-------------------------------------------------------------------------------------
-inline half4 LightingStylizedPBS (SurfaceOutputStylizedPBS s, half3 viewDir, UnityGI gi)
+half4 LightingStylizedPBS (SurfaceOutputStylizedPBS s, half3 viewDir, UnityGI gi)
 {
     s.Normal = normalize(s.Normal);
 
@@ -81,7 +81,7 @@ inline half4 LightingStylizedPBS (SurfaceOutputStylizedPBS s, half3 viewDir, Uni
     half outputAlpha;
     s.Albedo = PreMultiplyAlpha (s.Albedo, s.Alpha, oneMinusReflectivity, /*out*/ outputAlpha);
 
-    half4 c = PBS_Stylized (s.Albedo, specColor, oneMinusReflectivity, s.Smoothness, s.Normal, viewDir, gi.light, gi.indirect);
+    half4 c = PBS_Stylized (s.Albedo, specColor, oneMinusReflectivity, s.Smoothness, s.Normal, viewDir, gi.light, gi.indirect, s.SkinMask);
     c.rgb += PBS_Stylized_Indirect (s.Albedo, specColor, oneMinusReflectivity, s.Smoothness, s.Normal, viewDir, s.Occlusion, gi);
     c.a = outputAlpha;
     return c;
