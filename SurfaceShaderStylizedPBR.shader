@@ -1,4 +1,4 @@
-Shader "David/StylizedPBR"
+Shader "DavidShin/PBR Metallic Stylized"
 {
 	Properties
     {
@@ -30,8 +30,8 @@ Shader "David/StylizedPBR"
 
     SubShader
 	{
-		Tags { "RenderType"="Opaque" "PerformanceChecks"="True" }
-		LOD 150
+        Tags { "RenderType"="Opaque" "PerformanceChecks"="False" }
+        LOD 300
 
         Blend [_SrcBlend] [_DstBlend]
         ZWrite [_ZWrite]
@@ -40,18 +40,24 @@ Shader "David/StylizedPBR"
         CGPROGRAM
         #include "UnityCG.cginc"
         #include "AutoLight.cginc"
+        #include "UnityPBSLighting.cginc"
+        #include "UnityLightingCommon.cginc"
+        #include "UnityGlobalIllumination.cginc"
         #pragma surface surf StylizedPBS
 
         #pragma target 3.0
         #pragma exclude_renderers gles
 
         #pragma shader_feature _ _ALPHATEST_ON _ALPHABLEND_ON _ALPHAPREMULTIPLY_ON
+        #pragma shader_feature ___ _DETAIL_MULX2
+        #pragma shader_feature _BRDFLOOKUP
         #pragma shader_feature _MASKMAP
         #pragma shader_feature _NORMALMAP
         #pragma shader_feature _EMISSIONMAP
 
-        //#pragma skip_variants SHADOWS_SOFT DIRLIGHTMAP_COMBINED DIRLIGHTMAP_SEPARATE
+        #pragma skip_variants SHADOWS_SOFT DIRLIGHTMAP_COMBINED DIRLIGHTMAP_SEPARATE
 
+        //-------------------------------------------------------------------------------------
         // Variables
         half4 _Color;
         sampler2D _MainTex;
@@ -70,11 +76,6 @@ Shader "David/StylizedPBR"
             float2 uv_MainTex;
         };
 
-        #include "UnityPBSLighting.cginc"
-        #include "UnityLightingCommon.cginc"
-        #include "UnityGlobalIllumination.cginc"
-        //-------------------------------------------------------------------------------------
-        //-------------------------------------------------------------------------------------
         struct SurfaceOutputStylizedPBS
         {
             fixed3 Albedo;      // base (diffuse or specular) color
@@ -89,33 +90,33 @@ Shader "David/StylizedPBR"
         //-------------------------------------------------------------------------------------
 
         //-------------------------------------------------------------------------------------
-        half4 PBS_Stylized (half3 diffColor, half3 specColor, half oneMinusReflectivity, half oneMinusRoughness, half3 normal, half3 viewDir, UnityLight light, UnityIndirect gi, half skinMask)
+        inline half4 PBS_Stylized (half3 diffColor, half3 specColor, half oneMinusReflectivity, half oneMinusRoughness, half3 normal, half3 viewDir, UnityLight light, UnityIndirect gi, half skinMask)
         {
             half3 reflDir = reflect (viewDir, normal);
-
-            half nl = dot(normal, light.dir);
             half nv = DotClamped (normal, viewDir);
 
-            // Vectorize Pow4 to save instructions
-            // use R.L instead of N.H to save couple of instructions
             half2 rlPow4AndFresnelTerm = Pow4 (half2(dot(reflDir, light.dir), 1-nv));
-            // power exponent must match kHorizontalWarpExp in NHxRoughness() function in GeneratedTextures.cpp
             half rlPow4 = rlPow4AndFresnelTerm.x;
             half fresnelTerm = pow(rlPow4AndFresnelTerm.y, 1);
             half grazingTerm = saturate(oneMinusRoughness + (1-oneMinusReflectivity));
             grazingTerm += _SmoothnessScale;
 
-            half hl = nl * 0.5 + 0.5;
-            half3 ramp = tex2D(_RampTex, half2(hl, 1)).rgb;
+            half hl = dot(normal, light.dir) * 0.5 + 0.5;
 
             half3 color = BRDF3_Direct(diffColor, specColor, rlPow4, oneMinusRoughness);
-            color *= ramp * light.color;
+            //TODO : Attenuation causes artifacts
+            #if _BRDFLOOKUP
+                half3 ramp = tex2D(_RampTex, half2(hl, 1)).rgb;
+                color *= ramp * light.color;
+            #else
+                color *= light.ndotl * light.color;
+            #endif
             color += BRDF3_Indirect(diffColor, specColor, gi, grazingTerm, fresnelTerm);
 
             return half4(color,1);
         }
 
-        half3 PBS_Stylized_Indirect (half3 baseColor, half3 specColor, half oneMinusReflectivity, half oneMinusRoughness, half3 normal, half3 viewDir, half occlusion, UnityGI gi)
+        inline half3 PBS_Stylized_Indirect (half3 baseColor, half3 specColor, half oneMinusReflectivity, half oneMinusRoughness, half3 normal, half3 viewDir, half occlusion, UnityGI gi)
         {
             half3 c = 0;
             #if defined(DIRLIGHTMAP_SEPARATE)
@@ -134,7 +135,7 @@ Shader "David/StylizedPBR"
         //-------------------------------------------------------------------------------------
 
         //-------------------------------------------------------------------------------------
-        half4 LightingStylizedPBS (SurfaceOutputStylizedPBS s, half3 viewDir, UnityGI gi)
+        inline half4 LightingStylizedPBS (SurfaceOutputStylizedPBS s, half3 viewDir, UnityGI gi)
         {
             s.Normal = normalize(s.Normal);
 
@@ -153,16 +154,16 @@ Shader "David/StylizedPBR"
             return c;
         }
 
-        void LightingStylizedPBS_GI (
+        inline void LightingStylizedPBS_GI (
             SurfaceOutputStylizedPBS s,
             UnityGIInput data,
             inout UnityGI gi)
         {
-            gi = UnityGlobalIllumination (data, s.Occlusion, s.Smoothness, s.Normal, true); // reflections = true
-            //UNITY_GI(gi, s, data);
+            UNITY_GI(gi, s, data);
         }
         //-------------------------------------------------------------------------------------
 
+        //-------------------------------------------------------------------------------------
         void surf(Input IN, inout SurfaceOutputStylizedPBS o)
         {
             fixed4 color = tex2D(_MainTex, IN.uv_MainTex);
@@ -190,9 +191,10 @@ Shader "David/StylizedPBR"
             #endif
 
             o.Alpha = color.a * _Color.a;
+            //-------------------------------------------------------------------------------------
         }
         ENDCG
     }
     FallBack "Standard"
-    CustomEditor "DavidStylizedPBRUI"
+    CustomEditor "DavidStylizedPBRUI2"
 }
